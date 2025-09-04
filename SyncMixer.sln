@@ -3,12 +3,7 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.11.35222.181
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SyncMixer", "SyncMixer\SyncMixer.csproj", "{D011AD59-67EA-4560-BD57-3E4AAF2F8930}"
-	ProjectSection(ProjectDependencies) = postProject
-		{8263BFBF-EBAA-436F-99BE-69DA608C1C9D} = {8263BFBF-EBAA-436F-99BE-69DA608C1C9D}
-	EndProjectSection
-EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SyncMixerLogic", "SyncMixerLogic\SyncMixerLogic.csproj", "{8263BFBF-EBAA-436F-99BE-69DA608C1C9D}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SyncMixerLogic", "SyncMixerLogic\SyncMixerLogic.csproj", "{8263BFBF-EBAA-436F-99BE-69DA608C1C9D}"
 	ProjectSection(ProjectDependencies) = postProject
 		{5E660477-0AB8-4DCF-BDDE-4602C89D698F} = {5E660477-0AB8-4DCF-BDDE-4602C89D698F}
 	EndProjectSection
@@ -18,7 +13,9 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution 
 		.editorconfig = .editorconfig
 	EndProjectSection
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SyncMixerApi", "SyncMixerApi\SyncMixerApi.csproj", "{5E660477-0AB8-4DCF-BDDE-4602C89D698F}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SyncMixerApi", "SyncMixerApi\SyncMixerApi.csproj", "{5E660477-0AB8-4DCF-BDDE-4602C89D698F}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SyncMixer", "..\..\SyncMixer\SyncMixer.csproj", "{B6BC9772-8F3D-4538-931A-534E537E188E}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -26,10 +23,6 @@ Global
 		Release|Any CPU = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{D011AD59-67EA-4560-BD57-3E4AAF2F8930}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{D011AD59-67EA-4560-BD57-3E4AAF2F8930}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{D011AD59-67EA-4560-BD57-3E4AAF2F8930}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{D011AD59-67EA-4560-BD57-3E4AAF2F8930}.Release|Any CPU.Build.0 = Release|Any CPU
 		{8263BFBF-EBAA-436F-99BE-69DA608C1C9D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{8263BFBF-EBAA-436F-99BE-69DA608C1C9D}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{8263BFBF-EBAA-436F-99BE-69DA608C1C9D}.Release|Any CPU.ActiveCfg = Release|Any CPU
@@ -38,6 +31,10 @@ Global
 		{5E660477-0AB8-4DCF-BDDE-4602C89D698F}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{5E660477-0AB8-4DCF-BDDE-4602C89D698F}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{5E660477-0AB8-4DCF-BDDE-4602C89D698F}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B6BC9772-8F3D-4538-931A-534E537E188E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B6BC9772-8F3D-4538-931A-534E537E188E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B6BC9772-8F3D-4538-931A-534E537E188E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B6BC9772-8F3D-4538-931A-534E537E188E}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
