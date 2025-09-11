@@ -1,65 +1,165 @@
 ﻿namespace SyncMixerLogic;
 
+using CSharpFunctionalExtensions;
 using SyncMixerApi;
 
 public class SyncManager
 {
-    public SyncManager()
-    {
-        var task = MixerClient.Create();
-        task.ConfigureAwait(true).GetAwaiter().OnCompleted(() =>
-        {
-            var result = task.Result;
-            if (result.IsFailure)
-            {
-                Console.WriteLine("Error Creating User");
-                return;
-            }
 
-            this.SpotifyClient = task.Result.Value;
-            this.RetrievePlaylistData();
-        });
-    }
+    private readonly TaskCompletionSource<bool> finishedTcs =
+          new (TaskCreationOptions.RunContinuationsAsynchronously);
+
+    public Task<bool> WhenFinished => this.finishedTcs.Task;
 
     private MixerClient? SpotifyClient { get; set; }
 
-    private void RetrievePlaylistData()
+    private List<PlayList>? PlayLists { get; set; }
+
+#pragma warning disable SA1300 // Element should begin with upper-case letter
+    private PlayList? _mixerPlayList { get; set; }
+#pragma warning restore SA1300 // Element should begin with upper-case letter
+
+    private PlayList MixerPlayList
     {
-        var playListsTask = this.SpotifyClient!.GetUserPlaylists();
-        playListsTask.ConfigureAwait(true).GetAwaiter().OnCompleted(() =>
+        get
         {
-            var result = playListsTask.Result;
+            if (this._mixerPlayList == null)
+            {
+                this._mixerPlayList = this.GetMixerPlayList() ?? this.CreateSyncMixerPlayList();
+            }
+
+            return this._mixerPlayList;
+        }
+
+        set
+        {
+            this._mixerPlayList = value;
+        }
+    }
+
+    private bool IsNewPlayList { get; set; } = false;
+
+    public async Task Init(string clientId, CancellationToken ct = default)
+    {
+        try
+        {
+            var result = await MixerClient.Create(clientId);
             if (result.IsFailure)
             {
-                Console.WriteLine("Error Getting playlists");
-
+                Console.WriteLine("Error Creating User");
+                this.finishedTcs.TrySetResult(false);
                 return;
             }
 
-            var filteredPlaylists = this.FilterPlayLists(result.Value);
+            this.SpotifyClient = result.Value;
+            this.PlayLists = new List<PlayList>();
 
-            foreach (var playlist in filteredPlaylists)
-            {
-                var songsTask = this.SpotifyClient!.GetPlayListTracks(playlist);
-                songsTask.ConfigureAwait(true).GetAwaiter().OnCompleted(() =>
-                {
-                    var result = songsTask.Result;
-                    if (result.IsFailure)
-                    {
-                        Console.WriteLine("Error Getting playlists");
+            await this.RetrievePlaylistData();
+            this.GetSyncMixerPlayList();
+            await this.PrepareSyncMixPlayList();
+            await this.SetSyncMixPlayListTracks();
 
-                        return;
-                    }
-
-                    playlist.AddTracks(result.Value);
-
-                });
-            }
-        });
+            Console.Clear();
+            Console.WriteLine("SyncMixer Succesfull");
+            this.finishedTcs.TrySetResult(true);
+        }
+        catch (OperationCanceledException)
+        {
+            this.finishedTcs.TrySetCanceled(ct);
+            throw;
+        }
+        catch (Exception ex)
+        {
+            this.finishedTcs.TrySetException(ex);
+            throw;
+        }
     }
 
-    private PlayList[] FilterPlayLists(PlayList[] playLists)
+    private async Task RetrievePlaylistData()
     {
-        return playLists.Where(x => !x.Collaborative && x.Name.EndsWith("-s")).ToArray();
+        Console.Clear();
+        Console.WriteLine("Starting Retrieving Playlist Data");
+
+        var playListsTask = await this.SpotifyClient!.GetUserPlaylists();
+        if (playListsTask.IsFailure)
+        {
+            Console.WriteLine("Error Getting playlists");
+
+            return;
+        }
+
+        var result = playListsTask.Value;
+        this.PlayLists = result.ToList();
+
+        foreach (var playlist in this.FilterPlayLists())
+        {
+            var tracksResult = await this.SpotifyClient!.GetPlayListTracks(playlist);
+            if (tracksResult.IsFailure)
+            {
+                Console.WriteLine("Error playlist tracks");
+                return;
+            }
+
+            playlist.AddTracks(tracksResult.Value);
+        }
+
+        Console.WriteLine("Finished Retrieving Playlist Data");
     }
+
+    private async Task SetSyncMixPlayListTracks()
+    {
+        Console.Clear();
+        Console.WriteLine("Starting Setting SyncMixer Playlist tracks");
+
+        var result = await this.SpotifyClient!.SetSyncMixerPlayListTracks(this.MixerPlayList);
+        if (result.IsFailure)
+        {
+            Console.WriteLine("Error adding playlist tracks");
+
+            return;
+        }
+
+        Console.WriteLine("Finished Setting SyncMixer Playlist tracks");
+
+    }
+
+    private async Task PrepareSyncMixPlayList()
+    {
+        Console.Clear();
+        Console.WriteLine("Starting Preparing SyncMixer Playlist");
+
+        var result = this.IsNewPlayList ? await this.SpotifyClient!.SetNewSyncMixerPlayList(this.MixerPlayList) : await this.SpotifyClient!.DeleteSyncMixerTracks(this.MixerPlayList);
+        if (result.IsFailure)
+        {
+            Console.WriteLine("Error Preparing playlists");
+
+            return;
+        }
+
+        Console.WriteLine("Finished Preparing SyncMixer Playlist");
+
+    }
+
+    private void GetSyncMixerPlayList()
+    {
+        this.FilterPlayLists().ToList().ForEach(x => this.MixerPlayList.AddTracks(x.Tracks));
+    }
+
+    private PlayList CreateSyncMixerPlayList()
+    {
+        var playlist = new PlayList
+        {
+            Name = "SyncMixer -m",
+            Description = "This playlist is generated by the SyncMixer app. " +
+                          "Source: Mixer integration. " +
+                          $"©{DateTime.Now.Year.ToString()} - Zuipskuur Invent",
+            Collaborative = true,
+        };
+        this.IsNewPlayList = true;
+        return playlist;
+    }
+
+    private PlayList[] FilterPlayLists() => this.PlayLists.Where(x => !x.Collaborative && x.Name.EndsWith("-s")).ToArray();
+
+    private PlayList? GetMixerPlayList() => this.PlayLists.FirstOrDefault(x => !x.Collaborative && x.Name.EndsWith("-m"));
 }

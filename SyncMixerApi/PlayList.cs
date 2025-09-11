@@ -1,6 +1,7 @@
 ﻿namespace SyncMixerApi;
 
 using Newtonsoft.Json;
+using System.Reflection.Metadata.Ecma335;
 
 public class PlayList
 {
@@ -23,6 +24,12 @@ public class PlayList
 
     public void AddTracks(Track[] tracks)
     {
-        this.Tracks = tracks;
+        var existing = this.Tracks ?? Array.Empty<Track>();
+        var incoming = tracks ?? Array.Empty<Track>();
+        this.Tracks = existing
+            .Concat(incoming)
+            .Where(t => t != null && !string.IsNullOrWhiteSpace(t.Uri))
+            .DistinctBy(t => t.Uri!.Trim(), StringComparer.OrdinalIgnoreCase)
+            .ToArray();
     }
 }

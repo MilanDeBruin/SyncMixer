@@ -15,5 +15,7 @@ public class Track
 
     [JsonProperty("name")]
     public string Name { get; set; } = default!;
-}
 
+    [JsonProperty("uri")]
+    public string Uri { get; set; } = default!;
+}
