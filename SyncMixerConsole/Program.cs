@@ -24,7 +24,7 @@ internal class Program
         var configuration = host.Services.GetService(typeof(IConfiguration)) as IConfiguration;
         var clientId = configuration?["AppSettings:ClientId"];
 
-        if(string.IsNullOrEmpty(clientId) || clientId == "Spotify User ID")
+        if(string.IsNullOrEmpty(clientId) || clientId == "<YOUR_SPOTIFY_CLIENT_ID>")
         {
             Console.WriteLine("Spotify Client ID is not set in appsettings.json, Please enter ur client id before continuing\n" +
                 $"The appsettings.json file is located at: {Path.Combine(appsettingsPath, "appsettings.json")}");

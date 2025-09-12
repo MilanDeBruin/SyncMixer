@@ -3,12 +3,21 @@
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>net8.0</TargetFramework>
-    <ImplicitUsings>enable</ImplicitUsings>
+	  <PlatformTarget>AnyCPU</PlatformTarget>
+	  <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>annotations</Nullable>
     <Version>$(VersionPrefix)</Version>
-    <PlatformTarget>AnyCPU</PlatformTarget>
+	  <Authors>Milan de Bruin</Authors>
     <RepositoryUrl>https://github.com/MilanDeBruin/SyncMixer</RepositoryUrl>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="..\README.md">
+      <Pack>True</Pack>
+      <PackagePath>\</PackagePath>
+    </None>
+  </ItemGroup>
 	
 	<ItemGroup>
 		<None Update="appsettings.json">

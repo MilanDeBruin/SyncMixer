@@ -32,4 +32,17 @@ public class PlayList
             .DistinctBy(t => t.Uri!.Trim(), StringComparer.OrdinalIgnoreCase)
             .ToArray();
     }
+
+    public void ShuffleTracks(int? seed = null)
+    {
+        if (this.Tracks == null || this.Tracks.Length <= 1) return;
+
+        var rng = seed.HasValue ? new Random(seed.Value) : Random.Shared;
+
+        for (int i = this.Tracks.Length - 1; i > 0; i--)
+        {
+            int j = rng.Next(i + 1);
+            (this.Tracks[i], this.Tracks[j]) = (this.Tracks[j], this.Tracks[i]);
+        }
+    }
 }

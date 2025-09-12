@@ -143,6 +143,7 @@ public class SyncManager
     private void GetSyncMixerPlayList()
     {
         this.FilterPlayLists().ToList().ForEach(x => this.MixerPlayList.AddTracks(x.Tracks));
+        this.MixerPlayList.ShuffleTracks();
     }
 
     private PlayList CreateSyncMixerPlayList()
@@ -159,7 +160,7 @@ public class SyncManager
         return playlist;
     }
 
-    private PlayList[] FilterPlayLists() => this.PlayLists.Where(x => !x.Collaborative && x.Name.EndsWith("-s")).ToArray();
+    private PlayList[] FilterPlayLists() => this.PlayLists!.Where(x => !x.Collaborative && x.Name.EndsWith("-s")).ToArray();
 
-    private PlayList? GetMixerPlayList() => this.PlayLists.FirstOrDefault(x => !x.Collaborative && x.Name.EndsWith("-m"));
+    private PlayList? GetMixerPlayList() => this.PlayLists!.FirstOrDefault(x => !x.Collaborative && x.Name.EndsWith("-m"));
 }
