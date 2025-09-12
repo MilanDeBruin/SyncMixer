@@ -45,4 +45,9 @@ public class PlayList
             (this.Tracks[i], this.Tracks[j]) = (this.Tracks[j], this.Tracks[i]);
         }
     }
+
+    public void ClearPlaylist()
+    {
+        this.Tracks = Array.Empty<Track>();
+    }
 }

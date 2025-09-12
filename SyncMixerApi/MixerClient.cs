@@ -15,7 +15,9 @@ public class MixerClient : IDisposable
 {
     private const string RedirectUri = "http://127.0.0.1:8000/callback";
     private static readonly string[] Scopes =
-    {
+    { 
+        "playlist-read-private",
+        "playlist-read-collaborative",
         "playlist-modify-private",
         "playlist-modify-public",
     };
@@ -35,7 +37,7 @@ public class MixerClient : IDisposable
 
         this.http = new HttpClient { BaseAddress = new Uri("https://api.spotify.com/v1/") };
         this.http.DefaultRequestHeaders.Accept.ParseAdd("application/json");
-        ApplyAuthHeader();
+        this.ApplyAuthHeader();
     }
 
     public static async Task<Result<MixerClient>> Create(string clientId)
@@ -69,8 +71,7 @@ public class MixerClient : IDisposable
             return Result.Failure<MixerClient>(
                 $"HttpListener kon niet starten op {listenerPrefix}: {ex.Message}\n" +
                 "Tip (Windows): voer als admin uit:\n" +
-                "  netsh http add urlacl url=http://127.0.0.1:8000/callback/ user=Everyone"
-            );
+                "  netsh http add urlacl url=http://127.0.0.1:8000/callback/ user=Everyone");
         }
 
         // 3) Browser openen
@@ -133,12 +134,14 @@ public class MixerClient : IDisposable
             listener.Stop();
             return Result.Failure<MixerClient>($"Authorisatie afgebroken: {error}");
         }
+
         if (string.IsNullOrEmpty(code))
         {
             await Reply(ctx, "Geen code ontvangen", "Er is geen 'code' parameter in de redirect-URL.");
             listener.Stop();
             return Result.Failure<MixerClient>("Geen authorisatiecode ontvangen.");
         }
+
         if (!StringComparer.Ordinal.Equals(state, returnedState))
         {
             await Reply(ctx, "State mismatch", "Beveiligingscontrole mislukt (mogelijk CSRF).");
@@ -151,22 +154,25 @@ public class MixerClient : IDisposable
 
         // 6) Code ruilen voor token(s) (PKCE: geen client secret nodig)
         using var http = new HttpClient();
-        var tokenResp = await http.PostAsync("https://accounts.spotify.com/api/token",
+        var tokenResp = await http.PostAsync(
+            "https://accounts.spotify.com/api/token",
             new FormUrlEncodedContent(new[]
             {
-                new KeyValuePair<string,string>("grant_type","authorization_code"),
-                new KeyValuePair<string,string>("code", code),
-                new KeyValuePair<string,string>("redirect_uri", RedirectUri),
-                new KeyValuePair<string,string>("client_id", clientId),
-                new KeyValuePair<string,string>("code_verifier", verifier),
+                new KeyValuePair<string, string>("grant_type", "authorization_code"),
+                new KeyValuePair<string, string>("code", code),
+                new KeyValuePair<string, string>("redirect_uri", RedirectUri),
+                new KeyValuePair<string, string>("client_id", clientId),
+                new KeyValuePair<string, string>("code_verifier", verifier),
             }));
 
         var tokenJson = await tokenResp.Content.ReadAsStringAsync();
         if (!tokenResp.IsSuccessStatusCode)
+        {
             return Result.Failure<MixerClient>($"Token exchange failed ({(int)tokenResp.StatusCode}): {tokenJson}");
+        }
 
         using var doc = JsonDocument.Parse(tokenJson);
-        var accessToken = doc.RootElement.GetProperty("access_token").GetString()!;
+        var accessToken = doc.RootElement.GetProperty("access_token").GetString() !;
         var expiresInSec = doc.RootElement.GetProperty("expires_in").GetInt32();
         var refreshToken = doc.RootElement.TryGetProperty("refresh_token", out var r) ? r.GetString() : null;
 
@@ -185,7 +191,7 @@ public class MixerClient : IDisposable
             return Result.Failure<PlayList[]>(ensure.Error);
         }
 
-        var resp = await http.GetAsync("me/playlists", ct);
+        var resp = await this.http.GetAsync("me/playlists", ct);
         var body = await resp.Content.ReadAsStringAsync(ct);
 
         if (!resp.IsSuccessStatusCode)
@@ -281,7 +287,6 @@ public class MixerClient : IDisposable
         if (string.IsNullOrEmpty(playList.Id))
         {
             return Result.Failure<PlayList>("Error response does not contain playlist id!");
-
         }
 
         return Result.Success();
@@ -289,25 +294,27 @@ public class MixerClient : IDisposable
 
     public async Task<Result> SetSyncMixerPlayListTracks(PlayList playList, int? position = null, CancellationToken ct = default)
     {
-        // 0) Guards
         if (playList == null || string.IsNullOrWhiteSpace(playList.Id))
+        {
             return Result.Failure("Playlist or Playlist.Id is missing.");
+        }
 
-        // Tracks -> URIs (strings)
         var uris = playList.Tracks
-    .Select(t => MixerClientHelpers.ToSpotifyUri(t))   // expliciete lambda voorkomt method-group ambigue
+    .Select(t => MixerClientHelpers.ToSpotifyUri(t))
     .Where(u => !string.IsNullOrWhiteSpace(u))
     .ToArray();
 
         if (uris.Length == 0)
-            return Result.Success(); // niets toe te voegen
+        {
+            return Result.Success();
+        }
 
-        // 1) Token
-        var ensure = await EnsureFreshAccessToken(ct);
+        var ensure = await this.EnsureFreshAccessToken(ct);
         if (ensure.IsFailure)
+        {
             return Result.Failure(ensure.Error);
+        }
 
-        // 2) Batches van max 100
         const int MAX = 100;
         for (int offset = 0; offset < uris.Length; offset += MAX)
         {
@@ -316,12 +323,12 @@ public class MixerClient : IDisposable
             var payload = new
             {
                 uris = batch,
-                position = position.HasValue ? position.Value + offset : (int?)null
+                position = position.HasValue ? position.Value + offset : (int?)null,
             };
 
             var json = JsonConvert.SerializeObject(payload, new JsonSerializerSettings
             {
-                NullValueHandling = NullValueHandling.Ignore // verwijdert "position" als null
+                NullValueHandling = NullValueHandling.Ignore,
             });
 
             using var content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
@@ -330,7 +337,9 @@ public class MixerClient : IDisposable
             var body = await resp.Content.ReadAsStringAsync(ct);
 
             if (!resp.IsSuccessStatusCode)
+            {
                 return Result.Failure($"Error adding tracks (batch {offset}-{offset + batch.Length - 1}): {body}");
+            }
         }
 
         return Result.Success();
@@ -338,41 +347,43 @@ public class MixerClient : IDisposable
 
     public async Task<Result> DeleteSyncMixerTracks(PlayList playList, string? snapshotId = null, CancellationToken ct = default)
     {
-        // Guards
         if (playList == null || string.IsNullOrWhiteSpace(playList.Id))
+        {
             return Result.Failure("Playlist or Playlist.Id is missing.");
+        }
 
-        // 1) Token
-        var ensure = await EnsureFreshAccessToken(ct);
+        var ensure = await this.EnsureFreshAccessToken(ct);
         if (ensure.IsFailure)
+        {
             return Result.Failure(ensure.Error);
+        }
 
-        // 2) Tracks -> geldige spotify: URI's
         var uris = playList.Tracks
-        .Select(t => MixerClientHelpers.ToSpotifyUri(t))   // expliciete lambda voorkomt method-group ambigue
+        .Select(t => MixerClientHelpers.ToSpotifyUri(t))
         .Where(u => !string.IsNullOrWhiteSpace(u))
         .ToArray();
 
         if (uris.Length == 0)
-            return Result.Success(); // niets te verwijderen
+        {
+            return Result.Success();
+        }
 
-        // 3) DELETE in batches van 100
         const int MAX = 100;
         for (int i = 0; i < uris.Length; i += MAX)
         {
             var batchUris = uris.Skip(i).Take(MAX)
-                                .Select(u => new { uri = u }) // <-- juiste JSON shape!
+                                .Select(u => new { uri = u })
                                 .ToArray();
 
             var payload = new
             {
                 tracks = batchUris,
-                snapshot_id = snapshotId // alleen meesturen als je ‘m hebt
+                snapshot_id = snapshotId,
             };
 
             var json = JsonConvert.SerializeObject(payload, new JsonSerializerSettings
             {
-                NullValueHandling = NullValueHandling.Ignore
+                NullValueHandling = NullValueHandling.Ignore,
             });
 
             using var content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
@@ -380,14 +391,17 @@ public class MixerClient : IDisposable
             // DELETE met body -> via HttpRequestMessage
             using var request = new HttpRequestMessage(HttpMethod.Delete, $"playlists/{playList.Id}/tracks")
             {
-                Content = content
+                Content = content,
             };
 
-            var resp = await http.SendAsync(request, ct);
+            var resp = await this.http.SendAsync(request, ct);
             var body = await resp.Content.ReadAsStringAsync(ct);
 
             if (!resp.IsSuccessStatusCode)
+            {
                 return Result.Failure($"Error deleting tracks (batch {i}-{i + batchUris.Length - 1}): {body}");
+
+            }
         }
 
         return Result.Success();

@@ -7,7 +7,7 @@ public class SyncManager
 {
 
     private readonly TaskCompletionSource<bool> finishedTcs =
-          new (TaskCreationOptions.RunContinuationsAsynchronously);
+          new(TaskCreationOptions.RunContinuationsAsynchronously);
 
     public Task<bool> WhenFinished => this.finishedTcs.Task;
 
@@ -55,8 +55,9 @@ public class SyncManager
             this.PlayLists = new List<PlayList>();
 
             await this.RetrievePlaylistData();
-            this.GetSyncMixerPlayList();
             await this.PrepareSyncMixPlayList();
+            this.MixerPlayList.ClearPlaylist();
+            this.SetSyncMixerPlaylistTracks();
             await this.SetSyncMixPlayListTracks();
 
             Console.Clear();
@@ -93,17 +94,22 @@ public class SyncManager
 
         foreach (var playlist in this.FilterPlayLists())
         {
-            var tracksResult = await this.SpotifyClient!.GetPlayListTracks(playlist);
-            if (tracksResult.IsFailure)
-            {
-                Console.WriteLine("Error playlist tracks");
-                return;
-            }
-
-            playlist.AddTracks(tracksResult.Value);
+            await this.GetPlaylistTracks(playlist);
         }
 
         Console.WriteLine("Finished Retrieving Playlist Data");
+    }
+
+    private async Task GetPlaylistTracks(PlayList playlist)
+    {
+        var tracksResult = await this.SpotifyClient!.GetPlayListTracks(playlist);
+        if (tracksResult.IsFailure)
+        {
+            Console.WriteLine("Error playlist tracks");
+            return;
+        }
+
+        playlist.AddTracks(tracksResult.Value);
     }
 
     private async Task SetSyncMixPlayListTracks()
@@ -128,6 +134,11 @@ public class SyncManager
         Console.Clear();
         Console.WriteLine("Starting Preparing SyncMixer Playlist");
 
+        if (!this.IsNewPlayList)
+        {
+            await this.GetPlaylistTracks(this.MixerPlayList);
+        }
+
         var result = this.IsNewPlayList ? await this.SpotifyClient!.SetNewSyncMixerPlayList(this.MixerPlayList) : await this.SpotifyClient!.DeleteSyncMixerTracks(this.MixerPlayList);
         if (result.IsFailure)
         {
@@ -140,7 +151,7 @@ public class SyncManager
 
     }
 
-    private void GetSyncMixerPlayList()
+    private void SetSyncMixerPlaylistTracks()
     {
         this.FilterPlayLists().ToList().ForEach(x => this.MixerPlayList.AddTracks(x.Tracks));
         this.MixerPlayList.ShuffleTracks();
@@ -159,6 +170,8 @@ public class SyncManager
         this.IsNewPlayList = true;
         return playlist;
     }
+
+
 
     private PlayList[] FilterPlayLists() => this.PlayLists!.Where(x => !x.Collaborative && x.Name.EndsWith("-s")).ToArray();
 
