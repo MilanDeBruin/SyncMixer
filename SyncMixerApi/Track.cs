@@ -4,6 +4,9 @@ using Newtonsoft.Json;
 
 public class PlaylistTrackItem
 {
+    [JsonProperty("added_at")]
+    public DateTime AddedAt { get; set; } = default!;
+
     [JsonProperty("track")]
     public Track Track { get; set; } = default!;
 }

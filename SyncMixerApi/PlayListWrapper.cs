@@ -9,11 +9,11 @@ public class PlayListWrapper
         return resp?.Items ?? new List<PlayList>();
     }
 
-    public static List<Track> ParseTracks(string json)
+    public static List<PlaylistTrackItem> ParseTracks(string json)
     {
         var resp = JsonConvert.DeserializeObject<PlaylistsTracksResponse>(json);
         var item = resp?.Items ?? new List<PlaylistTrackItem>();
-        return item.Select(x => x.Track).ToList();
+        return item.ToList();
     }
 }
 
@@ -26,5 +26,5 @@ public sealed class PlaylistsResponse
 public sealed class PlaylistsTracksResponse
 {
     [JsonProperty("items")]
-    public List<PlaylistTrackItem> Items { get; set; } = new();
+    public List<PlaylistTrackItem> Items { get; set; } = new ();
 }

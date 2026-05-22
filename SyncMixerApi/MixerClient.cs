@@ -15,7 +15,7 @@ public class MixerClient : IDisposable
 {
     private const string RedirectUri = "http://127.0.0.1:8000/callback";
     private static readonly string[] Scopes =
-    { 
+    {
         "playlist-read-private",
         "playlist-read-collaborative",
         "playlist-modify-private",
@@ -203,17 +203,17 @@ public class MixerClient : IDisposable
         return Result.Success<PlayList[]>(playlists);
     }
 
-    public async Task<Result<Track[]>> GetPlayListTracks(PlayList playList, CancellationToken ct = default)
+    public async Task<Result<PlaylistTrackItem[]>> GetPlayListTracks(PlayList playList, CancellationToken ct = default)
     {
         var ensure = await this.EnsureFreshAccessToken(ct);
         if (ensure.IsFailure)
         {
-            return Result.Failure<Track[]>(ensure.Error);
+            return Result.Failure<PlaylistTrackItem[]>(ensure.Error);
         }
 
         var uriParts = playList.Uri.Split(':');
 
-        List<Track> playListTracks = new List<Track>();
+        List<PlaylistTrackItem> playListTracks = new List<PlaylistTrackItem>();
         int amount = 100;
         int offset = 0;
 
@@ -224,32 +224,32 @@ public class MixerClient : IDisposable
 
             if (!resp.IsSuccessStatusCode)
             {
-                return Result.Failure<Track[]>("Error getting data");
+                return Result.Failure<PlaylistTrackItem[]>("Error getting data");
             }
 
-            Track[] tracks = PlayListWrapper.ParseTracks(body).ToArray();
-            if (tracks.Length <= 0)
+            PlaylistTrackItem[] playlistItems = PlayListWrapper.ParseTracks(body).ToArray();
+            if (playlistItems.Length <= 0)
             {
                 break;
             }
 
-            foreach (var track in tracks)
+            foreach (var item in playlistItems)
             {
-                if (playListTracks.Any(x => x.Id == track.Id))
+                if (item.Track == null || playListTracks.Any(x => x.Track.Id == item.Track.Id))
                 {
                     continue;
                 }
 
-                playListTracks.Add(track);
+                playListTracks.Add(item);
             }
 
             offset += amount;
         }
 
-        return Result.Success<Track[]>(playListTracks.ToArray());
+        return Result.Success<PlaylistTrackItem[]>(playListTracks.ToArray());
     }
 
-    public async Task<Result> SetNewSyncMixerPlayList(PlayList playList, CancellationToken ct = default)
+    public async Task<Result> CreateNewPlayList(PlayList playList, CancellationToken ct = default)
     {
         var ensure = await this.EnsureFreshAccessToken(ct);
         if (ensure.IsFailure)
@@ -292,15 +292,15 @@ public class MixerClient : IDisposable
         return Result.Success();
     }
 
-    public async Task<Result> SetSyncMixerPlayListTracks(PlayList playList, int? position = null, CancellationToken ct = default)
+    public async Task<Result> SetPlayListTracks(PlayList playList, int? position = null, CancellationToken ct = default)
     {
         if (playList == null || string.IsNullOrWhiteSpace(playList.Id))
         {
             return Result.Failure("Playlist or Playlist.Id is missing.");
         }
 
-        var uris = playList.Tracks
-    .Select(t => MixerClientHelpers.ToSpotifyUri(t))
+        var uris = playList.TrackItems
+    .Select(t => MixerClientHelpers.ToSpotifyUri(t.Track))
     .Where(u => !string.IsNullOrWhiteSpace(u))
     .ToArray();
 
@@ -333,7 +333,7 @@ public class MixerClient : IDisposable
 
             using var content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
 
-            var resp = await http.PostAsync($"playlists/{playList.Id}/tracks", content, ct);
+            var resp = await this.http.PostAsync($"playlists/{playList.Id}/tracks", content, ct);
             var body = await resp.Content.ReadAsStringAsync(ct);
 
             if (!resp.IsSuccessStatusCode)
@@ -345,7 +345,7 @@ public class MixerClient : IDisposable
         return Result.Success();
     }
 
-    public async Task<Result> DeleteSyncMixerTracks(PlayList playList, string? snapshotId = null, CancellationToken ct = default)
+    public async Task<Result> DeleteTracks(PlayList playList, string? snapshotId = null, CancellationToken ct = default)
     {
         if (playList == null || string.IsNullOrWhiteSpace(playList.Id))
         {
@@ -358,8 +358,8 @@ public class MixerClient : IDisposable
             return Result.Failure(ensure.Error);
         }
 
-        var uris = playList.Tracks
-        .Select(t => MixerClientHelpers.ToSpotifyUri(t))
+        var uris = playList.TrackItems
+        .Select(t => MixerClientHelpers.ToSpotifyUri(t.Track))
         .Where(u => !string.IsNullOrWhiteSpace(u))
         .ToArray();
 
@@ -400,7 +400,6 @@ public class MixerClient : IDisposable
             if (!resp.IsSuccessStatusCode)
             {
                 return Result.Failure($"Error deleting tracks (batch {i}-{i + batchUris.Length - 1}): {body}");
-
             }
         }
 
@@ -415,36 +414,45 @@ public class MixerClient : IDisposable
     private async Task<Result> EnsureFreshAccessToken(CancellationToken ct)
     {
         // refresh als minder dan ~60s resterend
-        if (expiresAtUtc - DateTimeOffset.UtcNow > TimeSpan.FromSeconds(60))
+        if (this.expiresAtUtc - DateTimeOffset.UtcNow > TimeSpan.FromSeconds(60))
+        {
             return Result.Success();
+        }
 
-        if (string.IsNullOrWhiteSpace(refreshToken))
+        if (string.IsNullOrWhiteSpace(this.refreshToken))
+        {
             return Result.Failure("Geen refresh token beschikbaar; login vereist.");
+        }
 
         using var http = new HttpClient();
-        var resp = await http.PostAsync("https://accounts.spotify.com/api/token",
+        var resp = await http.PostAsync(
+            "https://accounts.spotify.com/api/token",
             new FormUrlEncodedContent(new[]
             {
-                new KeyValuePair<string,string>("grant_type","refresh_token"),
-                new KeyValuePair<string,string>("refresh_token", refreshToken!),
-                new KeyValuePair<string,string>("client_id", clientId),
+                new KeyValuePair<string, string>("grant_type", "refresh_token"),
+                new KeyValuePair<string, string>("refresh_token", this.refreshToken!),
+                new KeyValuePair<string, string>("client_id", this.clientId),
             }), ct);
 
         var json = await resp.Content.ReadAsStringAsync(ct);
         if (!resp.IsSuccessStatusCode)
+        {
             return Result.Failure($"Refresh token failed ({(int)resp.StatusCode}): {json}");
+        }
 
         using var doc = JsonDocument.Parse(json);
-        var newAccess = doc.RootElement.GetProperty("access_token").GetString()!;
+        var newAccess = doc.RootElement.GetProperty("access_token").GetString();
         var expiresIn = doc.RootElement.GetProperty("expires_in").GetInt32();
 
         // Sommige responses geven ook een nieuwe refresh_token terug:
         if (doc.RootElement.TryGetProperty("refresh_token", out var newRef))
-            refreshToken = newRef.GetString();
+        {
+            this.refreshToken = newRef.GetString();
+        }
 
-        accessToken = newAccess;
-        expiresAtUtc = DateTimeOffset.UtcNow.AddSeconds(expiresIn);
-        ApplyAuthHeader();
+        this.accessToken = newAccess!;
+        this.expiresAtUtc = DateTimeOffset.UtcNow.AddSeconds(expiresIn);
+        this.ApplyAuthHeader();
         return Result.Success();
     }
 

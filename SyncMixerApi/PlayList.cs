@@ -20,34 +20,36 @@ public class PlayList
     [JsonProperty("uri")]
     public string Uri { get; set; } = default!;
 
-    public Track[] Tracks { get; private set; } = Array.Empty<Track>();
+    public PlaylistTrackItem[] TrackItems { get; private set; } = Array.Empty<PlaylistTrackItem>();
 
-    public void AddTracks(Track[] tracks)
+    public void AddTrackItems(PlaylistTrackItem[] trackItems)
     {
-        var existing = this.Tracks ?? Array.Empty<Track>();
-        var incoming = tracks ?? Array.Empty<Track>();
-        this.Tracks = existing
+        var existing = this.TrackItems ?? Array.Empty<PlaylistTrackItem>();
+        var incoming = trackItems ?? Array.Empty<PlaylistTrackItem>();
+
+        this.TrackItems = existing
             .Concat(incoming)
-            .Where(t => t != null && !string.IsNullOrWhiteSpace(t.Uri))
-            .DistinctBy(t => t.Uri!.Trim(), StringComparer.OrdinalIgnoreCase)
+            .Where(t => t?.Track != null && !string.IsNullOrWhiteSpace(t.Track.Uri))
+            .GroupBy(t => t.Track.Uri.Trim(), StringComparer.OrdinalIgnoreCase)
+            .Select(g => g
+                .OrderByDescending(t => t.AddedAt)
+                .First())
             .ToArray();
     }
 
     public void ShuffleTracks(int? seed = null)
     {
-        if (this.Tracks == null || this.Tracks.Length <= 1) return;
+        if (this.TrackItems == null || this.TrackItems.Length <= 1)
+        {
+            return;
+        }
 
         var rng = seed.HasValue ? new Random(seed.Value) : Random.Shared;
 
-        for (int i = this.Tracks.Length - 1; i > 0; i--)
+        for (int i = this.TrackItems.Length - 1; i > 0; i--)
         {
             int j = rng.Next(i + 1);
-            (this.Tracks[i], this.Tracks[j]) = (this.Tracks[j], this.Tracks[i]);
+            (this.TrackItems[i], this.TrackItems[j]) = (this.TrackItems[j], this.TrackItems[i]);
         }
-    }
-
-    public void ClearPlaylist()
-    {
-        this.Tracks = Array.Empty<Track>();
     }
 }
